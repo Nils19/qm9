@@ -1,0 +1,21 @@
+nohup: ignoring input
+Starting QM9 experiments, will write logfiles for runs into /workspace/qm9_base_results.
+Traceback (most recent call last):
+  File "run_qm9_benchs.py", line 38, in run
+    subprocess.check_call(["python",
+  File "/usr/lib/python3.8/subprocess.py", line 364, in check_call
+    raise CalledProcessError(retcode, cmd)
+subprocess.CalledProcessError: Command '['python', 'train.py', '--run-test', 'RGAT', 'QM9', '--model-param-overrides', '{"random_seed": 3, "max_nodes_in_batch": 20000}', '--task-param-overrides', '{"task_ids": [0]}']' returned non-zero exit status 120.
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "run_qm9_benchs.py", line 73, in <module>
+    run_and_debug(lambda: run(args), enable_debugging=args['--debug'])
+  File "/usr/local/lib/python3.8/dist-packages/dpu_utils/utils/debughelper.py", line 21, in run_and_debug
+    func()
+  File "run_qm9_benchs.py", line 73, in <lambda>
+    run_and_debug(lambda: run(args), enable_debugging=args['--debug'])
+  File "run_qm9_benchs.py", line 38, in run
+    subprocess.check_call(["python",
+OSError: [Errno 5] Input/output error
