@@ -1,50 +1,64 @@
-The Problem
+Here's a 2-minute breakdown of the **Shared Backbone Capacity** mechanism:
+
+---
+
+## The Problem
 Standard GNNs give all nodes the same embedding dimension. But some nodes need more capacity (bottleneck nodes, high-degree nodes) while others need less. Fixed dimensions waste parameters.
 
-The Core Idea
-Adaptive capacity allocation: Give each node a personalized embedding dimension based on its structural importance, but do it efficiently by sharing parameters across capacity levels.
+## The Core Idea
+**Adaptive capacity allocation**: Give each node a personalized embedding dimension based on its structural importance, but do it efficiently by sharing parameters across capacity levels.
 
-How It Works (4 Steps)
-1. Compute Structural Features (lines 333-388)
+## How It Works (4 Steps)
+
+### 1. **Compute Structural Features** (lines 333-388)
 For each node, compute 3 features that indicate capacity needs:
+- **Degree**: High-degree nodes aggregate many messages → need more capacity
+- **Neighbor degree variance**: Nodes connecting high/low degree regions (bottlenecks) → need more capacity
+- **Bridge score**: Nodes with low clustering connect different communities → need more capacity
 
-Degree: High-degree nodes aggregate many messages → need more capacity
-Neighbor degree variance: Nodes connecting high/low degree regions (bottlenecks) → need more capacity
-Bridge score: Nodes with low clustering connect different communities → need more capacity
-2. Predict Capacity Assignment (CapacityPredictor, lines 391-418)
+### 2. **Predict Capacity Assignment** (`CapacityPredictor`, lines 391-418)
 A small MLP looks at those 3 structural features and outputs soft weights over K capacity "bins":
+- **Bin 0**: Smallest dimension (e.g., 128)
+- **Bin 1**: Medium-small (e.g., 160)
+- **Bin 2**: Medium-large (e.g., 192)
+- **Bin 3**: Largest (e.g., 256)
 
-Bin 0: Smallest dimension (e.g., 128)
-Bin 1: Medium-small (e.g., 160)
-Bin 2: Medium-large (e.g., 192)
-Bin 3: Largest (e.g., 256)
-Each node gets a soft assignment like [0.1, 0.3, 0.4, 0.2] — mostly using bins 2-3 but some from 1.
+Each node gets a **soft assignment** like [0.1, 0.3, 0.4, 0.2] — mostly using bins 2-3 but some from 1.
 
-3. Parallel Processing in Multiple Dimensions (CapacityAwareConv, lines 421-529)
+### 3. **Parallel Processing in Multiple Dimensions** (`CapacityAwareConv`, lines 421-529)
 Here's the "shared backbone" part:
+- Create K separate GNN layers (one per bin), each with different dimensions
+- For each node's features:
+  - **Project** to each bin's dimension
+  - **Process** through that bin's GNN layer
+  - **Project back** to base dimension
+  - **Weight** by the node's soft assignment to that bin
+- **Sum** all weighted outputs
 
-Create K separate GNN layers (one per bin), each with different dimensions
-For each node's features:
-Project to each bin's dimension
-Process through that bin's GNN layer
-Project back to base dimension
-Weight by the node's soft assignment to that bin
-Sum all weighted outputs
 So if a node has weights [0.1, 0.3, 0.4, 0.2]:
+```
+output = 0.1×(process_128dim) + 0.3×(process_160dim) + 0.4×(process_192dim) + 0.2×(process_256dim)
+```
 
-4. Message Passing (CapacityAwareGNNEncoder, lines 532-577)
+### 4. **Message Passing** (`CapacityAwareGNNEncoder`, lines 532-577)
 Apply this capacity-aware convolution for multiple layers with:
+- Residual connections
+- Layer normalization
+- The **same** capacity predictor across all layers (structural features computed once)
 
-Residual connections
-Layer normalization
-The same capacity predictor across all layers (structural features computed once)
-Why "Shared Backbone"?
-Shared: All nodes use the same set of K GNN layers (shared parameters)
-Backbone: These K layers form the backbone that's mixed differently per node
-Efficient: Instead of having personalized dimensions per node (millions of parameters), you have K shared layers that get combined with different weights
+## Why "Shared Backbone"?
+- **Shared**: All nodes use the same set of K GNN layers (shared parameters)
+- **Backbone**: These K layers form the backbone that's mixed differently per node
+- **Efficient**: Instead of having personalized dimensions per node (millions of parameters), you have K shared layers that get combined with different weights
 
-Here are 2-minute breakdowns of **GOKU (Spectrum-Preserving Sparsification)** and **SDRF (Spectral Distance Rewiring)**:
+## Key Advantage Over Full Attention (FA)
+- **FA cost**: O(N²H) — attention over all N nodes
+- **Shared Backbone cost**: O(K×N×E×H) where K=4 bins — scales with edges, not nodes²
+- **Break-even**: Cheaper than FA when N > 266 nodes (dimension-independent!)
 
+---
+
+**Bottom line**: Shared Backbone dynamically allocates embedding capacity to nodes based on their structural role, but does it efficiently by maintaining K shared "expert" layers that get weighted differently per node, rather than creating unique layers for each node.
 ---
 
 ## **GOKU (Spectrum-Preserving Sparsification)**
